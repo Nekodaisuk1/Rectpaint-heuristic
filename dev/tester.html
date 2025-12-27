@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paint Problem Tester</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .controls {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .control-group {
+            display: flex;
+            gap: 20px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+        .input-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #495057;
+        }
+        input[type="number"], input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        input[type="number"]:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .results {
+            padding: 30px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .stat-card.primary {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        .stat-card.success {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+        .stat-card.warning {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+        .stat-card h3 {
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            opacity: 0.9;
+        }
+        .stat-card .value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        .table-container {
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+        th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .progress {
+            margin-top: 20px;
+            display: none;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e9ecef;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+        .log {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 Paint Problem Tester</h1>
+            <p>ランダムシードで複数回テストを実行し、結果を分析</p>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <div class="input-group">
+                    <label for="testCount">テスト回数</label>
+                    <input type="number" id="testCount" value="10" min="1" max="1000">
+                </div>
+                <div class="input-group">
+                    <label for="baseSeed">基準シード (0=ランダム)</label>
+                    <input type="number" id="baseSeed" value="0" min="0">
+                </div>
+                <div class="input-group">
+                    <label for="solverPath">ソルバー実行ファイル</label>
+                    <input type="text" id="solverPath" value="./greedy_solver">
+                </div>
+                <div class="input-group">
+                    <label for="genType">ジェネレーター種類</label>
+                    <select id="genType">
+                        <option value="gen_hard80">gen_hard80 (固定)</option>
+                        <option value="gen_multi80">gen_multi80 (多様)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="genPath">ジェネレーター実行ファイル</label>
+                    <input type="text" id="genPath" value="./gen_hard80" readonly>
+                </div>
+                <button id="runBtn" onclick="runTests()">実行</button>
+                <button id="stopBtn" onclick="stopTests()" disabled>停止</button>
+            </div>
+        </div>
+        
+        <div class="results">
+            <div class="stats" id="stats" style="display: none;">
+                <div class="stat-card primary">
+                    <h3>総テスト数</h3>
+                    <div class="value" id="statTotal">0</div>
+                </div>
+                <div class="stat-card success">
+                    <h3>平均手数</h3>
+                    <div class="value" id="statAvg">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>最小手数</h3>
+                    <div class="value" id="statMin">-</div>
+                </div>
+                <div class="stat-card warning">
+                    <h3>最大手数</h3>
+                    <div class="value" id="statMax">-</div>
+                </div>
+                <div class="stat-card success">
+                    <h3>完全一致率</h3>
+                    <div class="value" id="statPerfect">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>平均Diff</h3>
+                    <div class="value" id="statAvgDiff">-</div>
+                </div>
+            </div>
+            
+            <div class="progress" id="progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill">0%</div>
+                </div>
+                <div class="log" id="log"></div>
+            </div>
+            
+            <div class="table-container" id="tableContainer" style="display: none;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>シード</th>
+                            <th>手数</th>
+                            <th>Diff</th>
+                            <th>ステータス</th>
+                            <th>実行時間 (ms)</th>
+                            <th>出力</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isRunning = false;
+        let results = [];
+        
+        // Update genPath when genType changes
+        document.addEventListener('DOMContentLoaded', function() {
+            const genType = document.getElementById('genType');
+            const genPath = document.getElementById('genPath');
+            
+            genType.addEventListener('change', function() {
+                genPath.value = './' + this.value;
+            });
+        });
+
+        function addLog(message) {
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const time = new Date().toLocaleTimeString();
+            entry.textContent = `[${time}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function updateProgress(current, total) {
+            const percent = Math.round((current / total) * 100);
+            const fill = document.getElementById('progressFill');
+            fill.style.width = percent + '%';
+            fill.textContent = `${current} / ${total} (${percent}%)`;
+        }
+
+        function updateStats() {
+            if (results.length === 0) return;
+
+            const moves = results.map(r => r.moves).filter(m => m !== null);
+            if (moves.length === 0) return;
+
+            const avg = moves.reduce((a, b) => a + b, 0) / moves.length;
+            const min = Math.min(...moves);
+            const max = Math.max(...moves);
+            
+            const diffs = results.map(r => r.diff).filter(d => d !== null && d !== undefined);
+            const perfectCount = diffs.filter(d => d === 0).length;
+            const perfectRate = diffs.length > 0 ? (perfectCount / diffs.length * 100).toFixed(1) : 0;
+            const avgDiff = diffs.length > 0 ? (diffs.reduce((a, b) => a + b, 0) / diffs.length).toFixed(1) : 0;
+
+            document.getElementById('statTotal').textContent = results.length;
+            document.getElementById('statAvg').textContent = avg.toFixed(1);
+            document.getElementById('statMin').textContent = min;
+            document.getElementById('statMax').textContent = max;
+            document.getElementById('statPerfect').textContent = perfectRate + '%';
+            document.getElementById('statAvgDiff').textContent = avgDiff;
+            document.getElementById('stats').style.display = 'grid';
+        }
+
+        function addResult(result) {
+            const tbody = document.getElementById('resultsBody');
+            const row = tbody.insertRow(0); // 最新を上に
+            
+            // クリック可能にするためのスタイルとイベント
+            row.style.cursor = 'pointer';
+            row.title = 'クリックしてViewerで表示';
+            row.addEventListener('click', (e) => {
+                // ボタンクリックの場合はviewerを開かない
+                if (e.target.tagName === 'BUTTON') return;
+                
+                const genType = document.getElementById('genType').value;
+                const solverPath = document.getElementById('solverPath').value;
+                const url = `http://localhost:8765/viewer.html?seed=${result.seed}&genType=${genType}&solverPath=${encodeURIComponent(solverPath)}`;
+                window.open(url, '_blank');
+            });
+            row.addEventListener('mouseenter', () => {
+                row.style.backgroundColor = '#f0f0f0';
+            });
+            row.addEventListener('mouseleave', () => {
+                row.style.backgroundColor = '';
+            });
+            
+            row.insertCell(0).textContent = result.index;
+            row.insertCell(1).textContent = result.seed;
+            row.insertCell(2).textContent = result.moves !== null ? result.moves : '-';
+            
+            const diffCell = row.insertCell(3);
+            if (result.diff !== null && result.diff !== undefined) {
+                diffCell.textContent = result.diff;
+                if (result.diff === 0) {
+                    diffCell.style.color = '#28a745';
+                    diffCell.style.fontWeight = 'bold';
+                } else if (result.diff > 0) {
+                    diffCell.style.color = '#dc3545';
+                    diffCell.style.fontWeight = 'bold';
+                }
+            } else {
+                diffCell.textContent = '-';
+            }
+            
+            const statusCell = row.insertCell(4);
+            const statusSpan = document.createElement('span');
+            statusSpan.className = `status ${result.status}`;
+            statusSpan.textContent = result.status === 'success' ? '成功' : 'エラー';
+            statusCell.appendChild(statusSpan);
+            
+            row.insertCell(5).textContent = result.time.toFixed(2);
+            
+            // 出力ボタンを追加
+            const downloadCell = row.insertCell(6);
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = 'ダウンロード';
+            downloadBtn.style.padding = '4px 8px';
+            downloadBtn.style.fontSize = '12px';
+            downloadBtn.onclick = async (e) => {
+                e.stopPropagation(); // 行のクリックイベントを阻止
+                await downloadTestData(result.seed);
+            };
+            downloadCell.appendChild(downloadBtn);
+        }
+
+        async function runSingleTest(seed, index, total) {
+            const genType = document.getElementById('genType').value;
+            const solverPath = document.getElementById('solverPath').value;
+            
+            addLog(`テスト #${index}: シード ${seed} で実行中...`);
+            
+            try {
+                const response = await fetch('http://localhost:8765/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ seed, genType, solverPath })
+                });
+                
+                const data = await response.json();
+                
+                const result = {
+                    index,
+                    seed,
+                    moves: data.moves,
+                    diff: data.diff,
+                    status: data.status,
+                    time: data.time
+                };
+                
+                results.push(result);
+                addResult(result);
+                updateStats();
+                updateProgress(index, total);
+                
+                if (data.status === 'success') {
+                    const diffMsg = data.diff !== null ? `, Diff: ${data.diff}` : '';
+                    addLog(`テスト #${index}: 完了 (手数: ${data.moves}${diffMsg})`);
+                } else {
+                    addLog(`テスト #${index}: エラー - ${data.error}`);
+                }
+                
+                return true;
+            } catch (error) {
+                addLog(`テスト #${index}: 接続エラー - ${error.message}`);
+                return false;
+            }
+        }
+
+        async function runTests() {
+            if (isRunning) return;
+            
+            const testCount = parseInt(document.getElementById('testCount').value);
+            let baseSeed = parseInt(document.getElementById('baseSeed').value);
+            
+            if (baseSeed === 0) {
+                baseSeed = Math.floor(Math.random() * 1000000000);
+            }
+            
+            isRunning = true;
+            results = [];
+            
+            document.getElementById('runBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('progress').style.display = 'block';
+            document.getElementById('tableContainer').style.display = 'block';
+            document.getElementById('resultsBody').innerHTML = '';
+            document.getElementById('log').innerHTML = '';
+            
+            addLog(`${testCount}回のテストを開始 (基準シード: ${baseSeed})`);
+            
+            for (let i = 1; i <= testCount && isRunning; i++) {
+                const seed = baseSeed + i - 1;
+                await runSingleTest(seed, i, testCount);
+                
+                // 少し待機（サーバー負荷軽減）
+                if (i < testCount) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            }
+            
+            if (isRunning) {
+                addLog('すべてのテストが完了しました');
+            } else {
+                addLog('テストが中断されました');
+            }
+            
+            isRunning = false;
+            document.getElementById('runBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+        }
+
+        function stopTests() {
+            isRunning = false;
+            addLog('テストを停止中...');
+        }
+        
+        async function downloadTestData(seed) {
+            const genType = document.getElementById('genType').value;
+            const solverPath = document.getElementById('solverPath').value;
+            
+            try {
+                addLog(`シード ${seed} のデータを取得中...`);
+                
+                const response = await fetch('http://localhost:8765/get_data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ seed, genType, solverPath })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    // input.txtをダウンロード
+                    const inputBlob = new Blob([data.input], { type: 'text/plain' });
+                    const inputUrl = URL.createObjectURL(inputBlob);
+                    const inputLink = document.createElement('a');
+                    inputLink.href = inputUrl;
+                    inputLink.download = `input_${seed}.txt`;
+                    inputLink.click();
+                    URL.revokeObjectURL(inputUrl);
+                    
+                    // output.txtをダウンロード
+                    const outputBlob = new Blob([data.output], { type: 'text/plain' });
+                    const outputUrl = URL.createObjectURL(outputBlob);
+                    const outputLink = document.createElement('a');
+                    outputLink.href = outputUrl;
+                    outputLink.download = `output_${seed}.txt`;
+                    outputLink.click();
+                    URL.revokeObjectURL(outputUrl);
+                    
+                    addLog(`シード ${seed} のデータをダウンロードしました`);
+                } else {
+                    addLog(`エラー: ${data.error}`);
+                }
+            } catch (error) {
+                addLog(`ダウンロードエラー: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

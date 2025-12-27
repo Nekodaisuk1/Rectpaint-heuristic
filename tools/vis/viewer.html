@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RectPaint Viewer</title>
+  <style>
+    body { 
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; 
+      margin: 16px; 
+      background: #f5f5f5;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .panel { 
+      background: white; 
+      border: 1px solid #ddd; 
+      border-radius: 8px; 
+      padding: 16px; 
+      margin-bottom: 16px;
+    }
+    .panel h2 { margin: 0 0 12px 0; font-size: 18px; color: #333; }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; }
+    canvas { 
+      border: 2px solid #666; 
+      border-radius: 4px; 
+      image-rendering: pixelated; 
+      background: white;
+    }
+    .controls { 
+      display: flex; 
+      gap: 8px; 
+      flex-wrap: wrap; 
+      align-items: center; 
+      margin-top: 12px; 
+    }
+    button { 
+      padding: 8px 16px; 
+      border-radius: 6px; 
+      border: 1px solid #ccc; 
+      background: #f0f0f0; 
+      cursor: pointer; 
+      font-size: 14px;
+    }
+    button:hover:not(:disabled) { background: #e0e0e0; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    input[type="range"] { width: 300px; }
+    input[type="file"] { font-size: 13px; }
+    .meta { margin-top: 12px; color: #555; font-size: 14px; line-height: 1.6; }
+    .error { 
+      color: #d32f2f; 
+      font-weight: 600; 
+      background: #ffebee;
+      padding: 12px;
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+    .warn { color: #f57c00; font-weight: 600; }
+    .success { color: #388e3c; font-weight: 600; }
+    .small { font-size: 13px; color: #666; }
+    code { 
+      background: #f3f3f3; 
+      padding: 2px 6px; 
+      border-radius: 4px; 
+      font-family: monospace;
+    }
+    .score-box {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 16px;
+      border-radius: 8px;
+      margin-top: 12px;
+    }
+    .score-box h3 { margin: 0 0 8px 0; font-size: 16px; }
+    .score-box .value { font-size: 28px; font-weight: bold; }
+    .score-note {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      padding: 8px;
+      border-radius: 4px;
+      margin-top: 8px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 RectPaint Viewer (Strict Mode)</h1>
+
+    <div class="panel">
+      <h2>ファイル読み込み</h2>
+      <div class="controls">
+        <label>input.txt: <input id="inputFile" type="file" accept=".txt" /></label>
+        <label>output.txt: <input id="outputFile" type="file" accept=".txt" /></label>
+        <button id="loadBtn">読み込み</button>
+        <span id="status" class="small"></span>
+      </div>
+      <div class="meta small">
+        入力形式: <code>80 seed</code> + 80行の盤面（<code>.</code><code>-</code><code>+</code>）<br/>
+        出力形式: <code>M</code> + M行（<code>r1 c1 r2 c2 x</code>、0-index）<br/>
+        <span class="warn">※ STRICT MODE: エラーがあれば即座に停止し表示します</span>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="panel">
+        <h2>Target (T)</h2>
+        <canvas id="canvasT" width="480" height="480"></canvas>
+      </div>
+
+      <div class="panel">
+        <h2>Current (A) / Diff overlay</h2>
+        <canvas id="canvasA" width="480" height="480"></canvas>
+        <div class="controls">
+          <label><input id="showDiff" type="checkbox" checked /> 差分を赤色表示</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>操作制御</h2>
+      <div class="controls">
+        <button id="toStart">|&lt;</button>
+        <button id="prev">&lt;</button>
+        <button id="next">&gt;</button>
+        <button id="toEnd">&gt;|</button>
+
+        <input id="slider" type="range" min="0" max="0" value="0" step="1" />
+
+        <label>速度
+          <input id="speed" type="range" min="1" max="60" value="12" />
+          <span id="speedLabel">12</span> fps
+        </label>
+        <button id="play">▶</button>
+        <button id="pause" disabled>⏸</button>
+      </div>
+
+      <div class="meta" id="info">
+        <div><strong>Step:</strong> <span id="step">0</span> / <span id="maxStep">0</span></div>
+        <div><strong>Diff:</strong> <span id="diff">-</span> セル</div>
+        <div class="small" id="lastMove">操作: なし</div>
+      </div>
+
+      <div class="score-box" id="scoreBox" style="display:none;">
+        <h3>📊 現在のスコア（参考）</h3>
+        <div class="value" id="scoreValue">-</div>
+        <div style="font-size:14px; margin-top:4px;">= 10000 × <span id="scoreDiff">0</span> + <span id="scoreMoves">0</span></div>
+      </div>
+      
+      <div class="score-note">
+        <strong>⚠️ 注意:</strong> このスコアは参考値です。<strong>公式スコアはjudgeの出力のみ</strong>が有効です。
+      </div>
+
+      <div id="error" class="error" style="display:none;"></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const N = 80;
+  const cellSize = 6;
+  const canvasSize = 480;
+  
+  const colors = {
+    0: "#ffffff", // '.'
+    1: "#222222", // '-'
+    2: "#2b6cb0", // '+'
+  };
+  const diffColor = "rgba(220, 38, 38, 0.5)";
+
+  const mapCharToVal = (ch) => ch === '.' ? 0 : (ch === '-' ? 1 : 2);
+  const mapValToChar = (v) => v === 0 ? '.' : (v === 1 ? '-' : '+');
+
+  const els = {
+    inputFile: document.getElementById("inputFile"),
+    outputFile: document.getElementById("outputFile"),
+    loadBtn: document.getElementById("loadBtn"),
+    status: document.getElementById("status"),
+    error: document.getElementById("error"),
+    canvasT: document.getElementById("canvasT"),
+    canvasA: document.getElementById("canvasA"),
+    showDiff: document.getElementById("showDiff"),
+    slider: document.getElementById("slider"),
+    toStart: document.getElementById("toStart"),
+    prev: document.getElementById("prev"),
+    next: document.getElementById("next"),
+    toEnd: document.getElementById("toEnd"),
+    speed: document.getElementById("speed"),
+    speedLabel: document.getElementById("speedLabel"),
+    play: document.getElementById("play"),
+    pause: document.getElementById("pause"),
+    step: document.getElementById("step"),
+    maxStep: document.getElementById("maxStep"),
+    diff: document.getElementById("diff"),
+    lastMove: document.getElementById("lastMove"),
+    scoreBox: document.getElementById("scoreBox"),
+    scoreValue: document.getElementById("scoreValue"),
+    scoreDiff: document.getElementById("scoreDiff"),
+    scoreMoves: document.getElementById("scoreMoves"),
+  };
+
+  const ctxT = els.canvasT.getContext("2d");
+  const ctxA = els.canvasA.getContext("2d");
+
+  let seedStr = "";
+  let target = new Uint8Array(N * N);
+  let moves = [];
+  let states = [];
+  let diffCounts = [];
+  let curStep = 0;
+  let timer = null;
+
+  function setError(msg) {
+    if (msg) {
+      els.error.textContent = msg;
+      els.error.style.display = 'block';
+    } else {
+      els.error.style.display = 'none';
+    }
+  }
+
+  function drawBoard(ctx, boardVals) {
+    for (let r = 0; r < N; r++) {
+      for (let c = 0; c < N; c++) {
+        const v = boardVals[r * N + c];
+        ctx.fillStyle = colors[v];
+        ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+      }
+    }
+  }
+
+  function drawCurrent() {
+    if (!states.length) return;
+    const A = states[curStep];
+
+    drawBoard(ctxT, target);
+    drawBoard(ctxA, A);
+
+    if (els.showDiff.checked) {
+      ctxA.fillStyle = diffColor;
+      for (let i = 0; i < N * N; i++) {
+        if (A[i] !== target[i]) {
+          const r = Math.floor(i / N);
+          const c = i % N;
+          ctxA.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+
+    els.step.textContent = String(curStep);
+    els.maxStep.textContent = String(states.length - 1);
+    const d = diffCounts[curStep];
+    els.diff.textContent = String(d);
+    
+    // Score display (reference only)
+    const score = 10000 * d + curStep;
+    els.scoreValue.textContent = score.toLocaleString();
+    els.scoreDiff.textContent = d;
+    els.scoreMoves.textContent = curStep;
+    els.scoreBox.style.display = 'block';
+
+    if (curStep === 0) {
+      els.lastMove.textContent = "操作: なし";
+    } else {
+      const mv = moves[curStep - 1];
+      els.lastMove.textContent = `操作 #${curStep}: (${mv.r1},${mv.c1})-(${mv.r2},${mv.c2}) → '${mv.xChar}'`;
+    }
+
+    els.slider.value = String(curStep);
+    els.prev.disabled = (curStep === 0);
+    els.toStart.disabled = (curStep === 0);
+    els.next.disabled = (curStep === states.length - 1);
+    els.toEnd.disabled = (curStep === states.length - 1);
+  }
+
+  function applyMove(prev, mv) {
+    const next = prev.slice();
+    const r1 = Math.min(mv.r1, mv.r2);
+    const r2 = Math.max(mv.r1, mv.r2);
+    const c1 = Math.min(mv.c1, mv.c2);
+    const c2 = Math.max(mv.c1, mv.c2);
+    const x = mv.xVal;
+
+    for (let r = r1; r <= r2; r++) {
+      for (let c = c1; c <= c2; c++) {
+        next[r * N + c] = x;
+      }
+    }
+    return next;
+  }
+
+  function computeDiffCount(board) {
+    let d = 0;
+    for (let i = 0; i < N * N; i++) {
+      if (board[i] !== target[i]) d++;
+    }
+    return d;
+  }
+
+  function parseInputText(txt) {
+    const lines = txt.replace(/\r/g, "").split("\n").filter(x => x.length > 0);
+    
+    if (lines.length < 1) {
+      throw new Error("入力が空です");
+    }
+    
+    const firstLine = lines[0].trim().split(/\s+/);
+    if (firstLine.length !== 2) {
+      throw new Error(`入力の1行目は "80 seed" の形式である必要があります。実際: "${lines[0]}"`);
+    }
+    
+    const n = parseInt(firstLine[0], 10);
+    const seed = firstLine[1];
+    
+    if (n !== 80) {
+      throw new Error(`Nは80である必要があります。実際: ${n}`);
+    }
+    
+    if (lines.length < n + 1) {
+      throw new Error(`盤面データが不足しています。必要: ${n}行、実際: ${lines.length - 1}行`);
+    }
+    
+    const boardLines = lines.slice(1, n + 1);
+    
+    for (let i = 0; i < n; i++) {
+      if (boardLines[i].length !== n) {
+        throw new Error(`盤面 ${i+1}行目の長さが不正です。必要: ${n}、実際: ${boardLines[i].length}`);
+      }
+      for (let j = 0; j < n; j++) {
+        const ch = boardLines[i][j];
+        if (!".-+".includes(ch)) {
+          throw new Error(`盤面 ${i+1}行${j+1}列に不正な文字があります: '${ch}'`);
+        }
+      }
+    }
+    
+    const T = new Uint8Array(N * N);
+    for (let r = 0; r < N; r++) {
+      for (let c = 0; c < N; c++) {
+        T[r * N + c] = mapCharToVal(boardLines[r][c]);
+      }
+    }
+    return { seed, T };
+  }
+
+  function parseOutputText(txt) {
+    const lines = txt.replace(/\r/g, "").split("\n").map(s => s.trim()).filter(s => s.length > 0);
+    
+    if (lines.length === 0) {
+      throw new Error("出力が空です");
+    }
+    
+    const M = parseInt(lines[0], 10);
+    
+    if (!Number.isFinite(M)) {
+      throw new Error(`Mが数値ではありません: "${lines[0]}"`);
+    }
+    
+    if (M < 0 || M > 800) {
+      throw new Error(`Mは0から800の範囲である必要があります。実際: ${M}`);
+    }
+    
+    if (lines.length < M + 1) {
+      throw new Error(`操作行が不足しています。M=${M}、実際の行数: ${lines.length - 1}`);
+    }
+    
+    const moves = [];
+    for (let i = 0; i < M; i++) {
+      const line = lines[1 + i];
+      const parts = line.split(/\s+/);
+      
+      if (parts.length !== 5) {
+        throw new Error(`操作 ${i+1} の形式が不正です（5要素必要）: "${line}"`);
+      }
+      
+      const r1 = parseInt(parts[0], 10);
+      const c1 = parseInt(parts[1], 10);
+      const r2 = parseInt(parts[2], 10);
+      const c2 = parseInt(parts[3], 10);
+      const xChar = parts[4];
+      
+      if (![r1, c1, r2, c2].every(v => Number.isInteger(v))) {
+        throw new Error(`操作 ${i+1} の座標が整数ではありません: "${line}"`);
+      }
+      
+      if (!(0 <= r1 && r1 < N && 0 <= r2 && r2 < N && 
+            0 <= c1 && c1 < N && 0 <= c2 && c2 < N)) {
+        throw new Error(`操作 ${i+1} の座標が範囲外です [0,${N-1}]: "${line}"`);
+      }
+      
+      if (xChar.length !== 1 || !".-+".includes(xChar)) {
+        throw new Error(`操作 ${i+1} の色が不正です: '${xChar}' (行: "${line}")`);
+      }
+      
+      moves.push({ r1, c1, r2, c2, xChar, xVal: mapCharToVal(xChar) });
+    }
+    
+    return moves;
+  }
+
+  async function readFileAsText(file) {
+    return await file.text();
+  }
+
+  function stopPlay() {
+    if (timer) clearInterval(timer);
+    timer = null;
+    els.play.disabled = false;
+    els.pause.disabled = true;
+  }
+
+  function startPlay() {
+    stopPlay();
+    const fps = +els.speed.value;
+    const interval = Math.max(5, Math.floor(1000 / fps));
+    els.play.disabled = true;
+    els.pause.disabled = false;
+
+    timer = setInterval(() => {
+      if (!states.length) return;
+      if (curStep >= states.length - 1) {
+        stopPlay();
+        return;
+      }
+      curStep++;
+      drawCurrent();
+    }, interval);
+  }
+
+  async function load() {
+    setError("");
+    stopPlay();
+
+    const inF = els.inputFile.files?.[0];
+    const outF = els.outputFile.files?.[0];
+    
+    if (!inF || !outF) {
+      setError("input.txt と output.txt を両方選択してください");
+      return;
+    }
+
+    els.status.textContent = "読み込み中...";
+    
+    try {
+      const [inTxt, outTxt] = await Promise.all([
+        readFileAsText(inF), 
+        readFileAsText(outF)
+      ]);
+      
+      const parsedIn = parseInputText(inTxt);
+      seedStr = parsedIn.seed;
+      target = parsedIn.T;
+
+      moves = parseOutputText(outTxt);
+
+      // Precompute states
+      states = new Array(moves.length + 1);
+      diffCounts = new Array(moves.length + 1);
+
+      states[0] = new Uint8Array(N * N); // all '.' => 0
+      diffCounts[0] = computeDiffCount(states[0]);
+
+      for (let i = 0; i < moves.length; i++) {
+        states[i + 1] = applyMove(states[i], moves[i]);
+        diffCounts[i + 1] = computeDiffCount(states[i + 1]);
+      }
+
+      curStep = 0;
+      els.slider.min = "0";
+      els.slider.max = String(moves.length);
+      els.slider.value = "0";
+
+      els.status.textContent = `✅ 読み込み完了（seed=${seedStr}, 操作数=${moves.length}）`;
+      els.status.className = "small success";
+      
+      drawCurrent();
+      
+    } catch (e) {
+      setError(`❌ エラー: ${e.message}`);
+      els.status.textContent = "";
+    }
+  }
+
+  // Event listeners
+  els.loadBtn.addEventListener("click", load);
+  els.showDiff.addEventListener("change", () => drawCurrent());
+  els.toStart.addEventListener("click", () => { curStep = 0; drawCurrent(); });
+  els.prev.addEventListener("click", () => { if (curStep > 0) curStep--; drawCurrent(); });
+  els.next.addEventListener("click", () => { if (states.length && curStep < states.length - 1) curStep++; drawCurrent(); });
+  els.toEnd.addEventListener("click", () => { if (states.length) curStep = states.length - 1; drawCurrent(); });
+
+  els.slider.addEventListener("input", (ev) => {
+    if (!states.length) return;
+    curStep = +ev.target.value;
+    drawCurrent();
+  });
+
+  els.speed.addEventListener("input", () => {
+    els.speedLabel.textContent = els.speed.value;
+    if (timer) startPlay();
+  });
+  els.speedLabel.textContent = els.speed.value;
+
+  els.play.addEventListener("click", startPlay);
+  els.pause.addEventListener("click", stopPlay);
+})();
+</script>
+</body>
+</html>

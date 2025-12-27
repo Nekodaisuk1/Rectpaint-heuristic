@@ -1,0 +1,33 @@
+# Compiled binaries
+tools/gen/gen
+tools/judge/judge
+*.exe
+
+# Test files
+test_input.txt
+test_output.txt
+*.tmp
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# User solutions (optional)
+my_solver
+my_solver.cpp
+solutions/
